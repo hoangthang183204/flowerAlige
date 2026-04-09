@@ -44,7 +44,7 @@
 
         <div class="mt-4 flex flex-col gap-3">
             <x-primary-button class="w-full justify-center">
-                {{ __('Register') }}
+                {{ __('Đăng Ký') }}
             </x-primary-button>
 
             <p class="text-xs text-center text-slate-500">

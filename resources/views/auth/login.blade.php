@@ -42,7 +42,7 @@
 
         <div class="mt-4 flex flex-col gap-3">
             <x-primary-button class="w-full justify-center">
-                {{ __('Log in') }}
+                {{ __('Đăng Nhập') }}
             </x-primary-button>
 
             @if (Route::has('register'))

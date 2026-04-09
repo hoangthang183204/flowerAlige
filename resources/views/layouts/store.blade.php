@@ -578,7 +578,7 @@
 <body>
     <div class="topbar">
         <div class="topbar-inner">
-            <div>HOTLINE: 1900 1345</div>
+            <div>HOTLINE: 0123456789</div>
             <div class="topbar-links">
                 @auth
                     <a href="{{ route('orders.my') }}">Lịch sử đơn hàng</a>
@@ -665,7 +665,7 @@
                     <div>
                         <div class="footer-title">Liên hệ</div>
                         <p class="footer-contact">
-                            <strong>Hotline:</strong> 1900 1345
+                            <strong>Hotline:</strong> 0123456789
                         </p>
                     </div>
                 </div>
