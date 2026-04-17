@@ -11,6 +11,7 @@ use App\Services\MomoService;
 use App\Services\VnPayService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class StoreController extends Controller
 {
@@ -164,7 +165,14 @@ class StoreController extends Controller
 
         $cart = $this->getCart($request);
         $current = $cart[$product->id] ?? 0;
-        $cart[$product->id] = $current + $quantity;
+        $newQuantity = $current + $quantity;
+
+        if (isset($product->stock) && $product->stock >= 0 && $newQuantity > $product->stock) {
+            return redirect()->route('products.show', $product->slug)
+                ->with('error', 'Số lượng yêu cầu vượt quá kho. Chỉ còn ' . $product->stock . ' sản phẩm.');
+        }
+
+        $cart[$product->id] = $newQuantity;
 
         $this->saveCart($request, $cart);
 
@@ -180,14 +188,35 @@ class StoreController extends Controller
         ]);
 
         $cart = [];
+        $productIds = array_keys($validated['items'] ?? []);
+        $products = $productIds ? Product::whereIn('id', $productIds)->get()->keyBy('id') : collect();
+
+        $messages = [];
 
         foreach ($validated['items'] ?? [] as $productId => $item) {
-            if ($item['quantity'] > 0) {
-                $cart[(int) $productId] = $item['quantity'];
+            $pid = (int) $productId;
+            $qty = (int) $item['quantity'];
+
+            $product = $products->get($pid);
+            if ($qty <= 0 || ! $product) {
+                continue;
+            }
+
+            if (isset($product->stock) && $product->stock >= 0 && $qty > $product->stock) {
+                $messages[] = $product->name . ': chỉ còn ' . $product->stock . ' sản phẩm. Số lượng đã được điều chỉnh.';
+                $qty = $product->stock;
+            }
+
+            if ($qty > 0) {
+                $cart[$pid] = $qty;
             }
         }
 
         $this->saveCart($request, $cart);
+
+        if (! empty($messages)) {
+            return redirect()->route('cart.show')->with('error', implode(' ', $messages));
+        }
 
         return redirect()->route('cart.show')->with('success', 'Đã cập nhật giỏ hàng.');
     }
@@ -224,7 +253,15 @@ class StoreController extends Controller
             ];
         }
 
-        return view('store.checkout', compact('items', 'total'));
+        $user = $request->user();
+
+        // Lấy đơn hàng gần nhất của user để dùng làm dữ liệu mặc định nếu cần
+        $lastOrder = null;
+        if ($user) {
+            $lastOrder = Order::where('user_id', $user->id)->orderByDesc('created_at')->first();
+        }
+
+        return view('store.checkout', compact('items', 'total', 'user', 'lastOrder'));
     }
 
     public function placeOrder(Request $request)
@@ -320,6 +357,23 @@ class StoreController extends Controller
 
         $request->session()->forget('cart');
 
+        // Nếu user đã đăng nhập thì cập nhật một số thông tin cơ bản để tự điền lần sau
+        if ($request->user()) {
+            $u = $request->user();
+
+            $data = [
+                'name' => $validated['customer_name'],
+            ];
+
+            // Chỉ cập nhật `phone` nếu cột tồn tại trong bảng `users` để tránh lỗi khi chưa migrate
+            if (Schema::hasColumn('users', 'phone')) {
+                $data['phone'] = $validated['customer_phone'];
+            }
+
+            $u->fill($data);
+            $u->save();
+        }
+
         if ($validated['payment_method'] === 'momo') {
             $momo = new MomoService;
             if (! $momo->isConfigured()) {
@@ -413,5 +467,32 @@ class StoreController extends Controller
         $order->load('items.product');
 
         return view('store.orders.show', compact('order'));
+    }
+
+    public function cancelOrder(Request $request, Order $order)
+    {
+        $user = $request->user();
+
+        if ($order->user_id !== $user->id) {
+            abort(403);
+        }
+
+        // Chỉ cho hủy khi chưa chuyển đi hoặc chưa hoàn thành
+        if (in_array($order->status, ['shipping', 'completed', 'cancelled'], true)) {
+            return redirect()->route('orders.my.show', $order)->with('error', 'Đơn hàng không thể hủy ở trạng thái hiện tại.');
+        }
+
+        DB::transaction(function () use ($order) {
+            // Hoàn trả tồn kho
+            foreach ($order->items as $item) {
+                if ($item->product) {
+                    $item->product->increment('stock', $item->quantity);
+                }
+            }
+
+            $order->update(['status' => 'cancelled']);
+        });
+
+        return redirect()->route('orders.my')->with('success', 'Đã hủy đơn hàng.');
     }
 }

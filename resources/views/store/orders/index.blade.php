@@ -6,7 +6,7 @@
     <h1 class="page-title">Lịch sử đơn hàng</h1>
     <p class="page-subtitle">Các đơn hàng bạn đã đặt và trạng thái hiện tại.</p>
 
-    @if($orders->isEmpty())
+    @if ($orders->isEmpty())
         <p style="font-size:.9rem;color:#706f6c;">Bạn chưa có đơn hàng nào.</p>
         <a href="{{ route('products.index') }}" class="btn btn-primary" style="margin-top:.5rem;">
             Bắt đầu mua sắm
@@ -25,17 +25,18 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach($orders as $order)
+                    @foreach ($orders as $order)
                         <tr style="border-top:1px solid #f0f0ec;">
                             <td style="padding:.6rem .9rem;font-weight:500;">#{{ $order->id }}</td>
                             <td style="padding:.6rem .9rem;">
                                 {{ $order->created_at->format('d/m/Y H:i') }}
                             </td>
                             <td style="padding:.6rem .9rem;">
-                                {{ match($order->payment_method) { 'cod' => 'Thanh toán khi nhận hàng', 'momo' => 'Ví MoMo', 'vnpay' => 'VNPay', default => 'Chuyển khoản' } }}
+                                {{ match ($order->payment_method) {'cod' => 'Thanh toán khi nhận hàng','momo' => 'Ví MoMo','vnpay' => 'VNPay',default => 'Chuyển khoản'} }}
                             </td>
                             <td style="padding:.6rem .9rem;text-align:center;">
-                                <span style="display:inline-flex;padding:.15rem .45rem;border-radius:999px;font-size:.78rem;
+                                <span
+                                    style="display:inline-flex;padding:.15rem .45rem;border-radius:999px;font-size:.78rem;
                                     @switch($order->status)
                                         @case('pending') background:#f3f3f0;color:#555; @break
                                         @case('confirmed') background:#e3f2ff;color:#18588a; @break
@@ -44,7 +45,14 @@
                                         @case('cancelled') background:#ffe5e5;color:#a02727; @break
                                     @endswitch
                                 ">
-                                    {{ ucfirst($order->status) }}
+                                    {{ match ($order->status) {
+                                        'pending' => 'Đang chờ',
+                                        'confirmed' => 'Đã xác nhận',
+                                        'shipping' => 'Đang giao',
+                                        'completed' => 'Hoàn thành',
+                                        'cancelled' => 'Đã hủy',
+                                        default => $order->status,
+                                    } }}
                                 </span>
                             </td>
                             <td style="padding:.6rem .9rem;text-align:right;font-weight:500;">
@@ -66,4 +74,3 @@
         </div>
     @endif
 @endsection
-
