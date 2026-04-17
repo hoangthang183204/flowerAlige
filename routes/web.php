@@ -33,6 +33,8 @@ Route::get('/blog/{slug}', [PostController::class, 'show'])->name('blog.show');
 
 Route::post('/chat', [ChatController::class, 'chat'])->name('chat.send');
 
+// (dev-only routes removed)
+
 // Khu vực sau đăng nhập (KH) — giỏ hàng & thanh toán chỉ dành cho thành viên
 Route::middleware('auth')->group(function () {
     Route::get('/cart', [StoreController::class, 'cart'])->name('cart.show');
@@ -57,9 +59,10 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/my-orders', [StoreController::class, 'myOrders'])->name('orders.my');
     Route::get('/my-orders/{order}', [StoreController::class, 'myOrderDetail'])->name('orders.my.show');
+    Route::post('/my-orders/{order}/cancel', [StoreController::class, 'cancelOrder'])->name('orders.my.cancel');
 });
 
-require __DIR__.'/auth.php';
+require __DIR__ . '/auth.php';
 
 // Khu vực quản trị (Admin)
 Route::middleware(['auth', 'admin'])
@@ -92,5 +95,3 @@ Route::middleware(['auth', 'admin'])
 
         Route::resource('banners', BannerController::class)->except(['show']);
     });
-
-
