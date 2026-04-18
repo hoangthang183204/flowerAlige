@@ -65,6 +65,22 @@
             text-underline-offset: 3px;
         }
 
+        /* Make form buttons in topbar look like links */
+        .topbar-links button {
+            background: none;
+            border: none;
+            color: inherit;
+            font-weight: 500;
+            cursor: pointer;
+            padding-top: 15;
+            font: inherit;
+        }
+
+        .topbar-links button:hover {
+            text-decoration: underline;
+            text-underline-offset: 3px;
+        }
+
         header {
             border-bottom: 1px solid var(--border-soft);
             background: #ffffff;
@@ -687,9 +703,8 @@
                     <a href="{{ route('profile.edit') }}">Tài khoản</a>
                     <form action="{{ route('logout') }}" method="POST" style="display: inline;">
                         @csrf
-                        <button type="submit" onclick="return confirm('Bạn có chắc chắn muốn đăng xuất?')">
-                            Đăng xuất
-                        </button>
+                        <button type="submit" onclick="return confirm('Bạn có chắc chắn muốn đăng xuất?')">Đăng
+                            xuất</button>
                     </form>
                 @else
                     <a href="{{ route('register') }}">Đăng ký</a>
@@ -756,36 +771,41 @@
         <footer>
             <div class="footer-inner">
                 <div class="footer-grid">
+                    <div>
+                        <div class="footer-brand">
+                            <span>🌸</span>
+                            <span>Flower Corner</span>
+                        </div>
+                        <p class="footer-tagline">Tươi đẹp cho mọi khoảnh khắc.</p>
+                        <p style="margin-top:.6rem;font-size:.9rem;color:#706f6c;">Địa chỉ: 123 Đường Hoa, Quận 1,
+                            TP.HCM</p>
+                        <p style="margin-top:.25rem;"><a href="tel:0123456789">0123456789</a> · <a
+                                href="mailto:info@flowercorner.vn">info@flowercorner.vn</a></p>
+                    </div>
+                    <div>
+                        <div class="footer-title">Liên kết</div>
+                        <nav class="footer-links">
+                            <a href="{{ route('home') }}">Trang chủ</a>
+                            <a href="{{ route('products.index') }}">Sản phẩm</a>
+                            <a href="{{ route('blog.index') }}">Blog</a>
+                            <a href="{{ route('cart.show') }}">Giỏ hàng</a>
+                        </nav>
+                    </div>
+                    <div>
+                        <div class="footer-title">Hỗ trợ</div>
+                        <nav class="footer-links">
+                            <a href="{{ url('/contact') }}">Liên hệ</a>
+                            <a href="{{ url('/terms') }}">Điều khoản</a>
+                            <a href="{{ url('/privacy') }}">Chính sách riêng tư</a>
+                        </nav>
+                    </div>
                 </div>
 
-                @stack('scripts')
-                <div class="footer-brand">
-                    <span>🌸</span>
-                    <span>Flower Corner</span>
+                <div class="footer-bottom">
+                    &copy; {{ date('Y') }} Flower Corner. Tất cả quyền được bảo lưu.
                 </div>
-                <p class="footer-tagline">Tươi đẹp cho mọi khoảnh khắc.</p>
             </div>
-            <div>
-                <div class="footer-title">Liên kết</div>
-                <nav class="footer-links">
-                    <a href="{{ route('home') }}">Trang chủ</a>
-                    <a href="{{ route('products.index') }}">Sản phẩm</a>
-                    <a href="{{ route('blog.index') }}">Blog</a>
-                    <a href="{{ route('cart.show') }}">Giỏ hàng</a>
-                </nav>
-            </div>
-            <div>
-                <div class="footer-title">Liên hệ</div>
-                <p class="footer-contact">
-                    <strong>Hotline:</strong> 0123456789
-                </p>
-            </div>
-    </div>
-    <div class="footer-bottom">
-        &copy; {{ date('Y') }} Flower Corner. Tất cả quyền được bảo lưu.
-    </div>
-    </div>
-    </footer>
+        </footer>
     </div>
 
     <div id="chat-widget">
@@ -850,7 +870,7 @@
                 if (messages.children.length === 0) {
                     appendBotMsg(
                         'Chào bạn! Mình là trợ lý của Flower Corner. Bạn cần tư vấn gì về hoa, đặt hàng hay giao hàng?'
-                        );
+                    );
                 }
                 input.focus();
             });

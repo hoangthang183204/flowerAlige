@@ -55,10 +55,22 @@
                         @method('PATCH')
                         <select name="status" class="admin-select" style="max-width: 220px;">
                             @foreach (['pending' => 'Chờ xử lý', 'confirmed' => 'Đã xác nhận', 'shipping' => 'Đang giao', 'completed' => 'Hoàn thành', 'cancelled' => 'Đã hủy'] as $value => $label)
-                                <option value="{{ $value }}" @selected($order->status === $value)>{{ $label }}
+                                @php
+                                    $disabled = !($order->canTransitionTo($value) || $order->status === $value);
+                                @endphp
+                                <option value="{{ $value }}" @selected($order->status === $value)
+                                    @if ($disabled) disabled title="Không thể chuyển sang trạng thái này" @endif>
+                                    {{ $label }}
                                 </option>
                             @endforeach
                         </select>
+                        @php
+                            $allowed = $order->allowedStatusTransitions()[$order->status] ?? [];
+                        @endphp
+                        @if (empty($allowed))
+                            <p class="text-sm text-gray-500 mt-1">Không có chuyển trạng thái hợp lệ từ trạng thái hiện tại.
+                            </p>
+                        @endif
                         <button type="submit" class="admin-btn admin-btn-accent">Lưu trạng thái</button>
                     </form>
                     <p class="mt-2">
