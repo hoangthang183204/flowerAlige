@@ -477,8 +477,8 @@ class StoreController extends Controller
             abort(403);
         }
 
-        // Chỉ cho hủy khi chưa chuyển đi hoặc chưa hoàn thành
-        if (in_array($order->status, ['shipping', 'completed', 'cancelled'], true)) {
+        // Chỉ cho hủy nếu luật chuyển trạng thái cho phép
+        if (! $order->canTransitionTo('cancelled')) {
             return redirect()->route('orders.my.show', $order)->with('error', 'Đơn hàng không thể hủy ở trạng thái hiện tại.');
         }
 

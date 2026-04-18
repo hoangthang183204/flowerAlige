@@ -30,5 +30,36 @@ class Order extends Model
     {
         return $this->belongsTo(User::class);
     }
-}
 
+    /**
+     * Return allowed next statuses for each current status.
+     *
+     * @return array<string, string[]>
+     */
+    public function allowedStatusTransitions(): array
+    {
+        return [
+            'pending' => ['confirmed', 'cancelled'],
+            'confirmed' => ['shipping', 'cancelled'],
+            'shipping' => ['completed'],
+            'completed' => [],
+            'cancelled' => [],
+        ];
+    }
+
+    /**
+     * Check if the order can transition from current status to given status.
+     */
+    public function canTransitionTo(string $to): bool
+    {
+        $from = $this->status;
+
+        if ($from === $to) {
+            return true;
+        }
+
+        $map = $this->allowedStatusTransitions();
+
+        return in_array($to, $map[$from] ?? [], true);
+    }
+}
