@@ -55,9 +55,17 @@
             gap: .75rem;
         }
 
+        .topbar-links a,
+        .topbar-links form {
+            display: inline-flex;
+            align-items: center;
+        }
+
         .topbar-links a {
             text-decoration: none;
             font-weight: 500;
+            padding: 0;
+            line-height: normal;
         }
 
         .topbar-links a:hover {
@@ -65,20 +73,32 @@
             text-underline-offset: 3px;
         }
 
-        /* Make form buttons in topbar look like links */
+        /* Sửa button đăng xuất cho đồng nhất */
         .topbar-links button {
             background: none;
             border: none;
             color: inherit;
             font-weight: 500;
             cursor: pointer;
-            padding-top: 15;
+            padding: 0;
+            margin: 0;
             font: inherit;
+            line-height: normal;
+            display: inline-flex;
+            align-items: center;
         }
 
         .topbar-links button:hover {
             text-decoration: underline;
             text-underline-offset: 3px;
+        }
+
+        /* Đảm bảo form không tạo khoảng cách thừa */
+        .topbar-links form {
+            margin: 0;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
         }
 
         header {

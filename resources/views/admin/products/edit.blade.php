@@ -62,7 +62,7 @@
                         <label class="admin-label">Xem trước ảnh</label>
                         <div class="w-full h-40 rounded-lg border border-dashed border-gray-300 flex items-center justify-center bg-gray-50 overflow-hidden">
                             @if($product->image_path)
-                                <img src="{{ asset($product->image_path) }}" alt="{{ $product->name }}" class="w-full h-full object-cover">
+                                <img src="{{ asset($product->image_path) }}" alt="{{ $product->name }}" class="w-full h-full object-cover" style="width:100px">
                             @else
                                 <span class="text-xs text-gray-500">Chưa có ảnh</span>
                             @endif
