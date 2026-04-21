@@ -37,25 +37,30 @@
                 </div>
             @endif
 
-            @auth
-                <form action="{{ route('cart.add', $product->id) }}" method="POST" style="margin-bottom:1.5rem;">
-                    @csrf
-                    <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem;max-width:220px;">
-                        <label for="quantity" style="font-size:.9rem;">Số lượng</label>
-                        <input type="number" id="quantity" name="quantity" value="1" min="1"
-                            @if (isset($product->stock)) max="{{ $product->stock }}" @endif
-                            style="width:80px;padding:.35rem .5rem;border-radius:.35rem;border:1px solid #e3e3e0;font-size:.9rem;">
-                    </div>
-                    <div id="stock-message" style="color:#b91c1c;font-size:.9rem;margin-bottom:.6rem;display:none;"></div>
-                    <button type="submit" class="btn btn-primary">
-                        Thêm vào giỏ hàng
-                    </button>
-                </form>
+            @if (isset($product->stock) && $product->stock == 0)
+                <div style="color:#b91c1c;font-size:1rem;font-weight:600;margin-bottom:.75rem;">Số lượng không đủ</div>
             @else
-                <p style="margin-bottom:1rem;font-size:.9rem;color:#706f6c;">Bạn cần đăng nhập để thêm sản phẩm vào giỏ và mua
-                    hàng.</p>
-                <a href="{{ route('login') }}" class="btn btn-primary">Đăng nhập để thêm vào giỏ hàng</a>
-            @endauth
+                @auth
+                    <form action="{{ route('cart.add', $product->id) }}" method="POST" style="margin-bottom:1.5rem;">
+                        @csrf
+                        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem;max-width:220px;">
+                            <label for="quantity" style="font-size:.9rem;">Số lượng</label>
+                            <input type="number" id="quantity" name="quantity" value="0" min="0"
+                                @if (isset($product->stock)) max="{{ $product->stock }}" @endif
+                                style="width:80px;padding:.35rem .5rem;border-radius:.35rem;border:1px solid #e3e3e0;font-size:.9rem;">
+                        </div>
+                        <div id="stock-message" style="color:#b91c1c;font-size:.9rem;margin-bottom:.6rem;display:none;"></div>
+                        <button type="submit" class="btn btn-primary">
+                            Thêm vào giỏ hàng
+                        </button>
+                    </form>
+                @else
+                    <p style="margin-bottom:1rem;font-size:.9rem;color:#706f6c;">Bạn cần đăng nhập để thêm sản phẩm vào giỏ và
+                        mua
+                        hàng.</p>
+                    <a href="{{ route('login') }}" class="btn btn-primary">Đăng nhập để thêm vào giỏ hàng</a>
+                @endauth
+            @endif
 
             @if ($relatedProducts->count())
                 <div style="margin-top:1.5rem;">
@@ -105,7 +110,16 @@
 
                 function update() {
                     let q = parseInt(qtyInput.value, 10);
-                    if (isNaN(q) || q < 1) q = 1;
+                    if (isNaN(q)) q = 0;
+
+                    if (q <= 0) {
+                        priceEl.textContent = formatVND(unitPrice);
+                        stockMsg.style.display = 'block';
+                        stockMsg.textContent = 'Vui lòng chọn số lượng lớn hơn 0.';
+                        if (addButton) addButton.disabled = true;
+                        return;
+                    }
+
                     const total = unitPrice * q;
                     priceEl.textContent = formatVND(total);
 
@@ -119,6 +133,8 @@
                             stockMsg.textContent = '';
                             if (addButton) addButton.disabled = false;
                         }
+                    } else {
+                        if (addButton) addButton.disabled = false;
                     }
                 }
 
