@@ -26,6 +26,17 @@ class VnPayController extends Controller
         $responseCode = $params['vnp_ResponseCode'] ?? '';
 
         $order = Order::find($txnRef);
+
+        // Debug: Log thời gian thực tế
+        Log::info('Order time check', [
+            'order_id' => $order->id,
+            'order_created_at_db' => $order->created_at,
+            'order_created_at_raw' => $order->getOriginal('created_at'),
+            'current_time_app' => now(),
+            'current_time_utc' => now()->utc(),
+            'current_time_vn' => now()->setTimezone('Asia/Ho_Chi_Minh'),
+            'timezone_config' => config('app.timezone')
+        ]);
         if (! $order) {
             Log::warning('VNPay return order not found', ['vnp_TxnRef' => $txnRef]);
             return redirect()->route('home')->with('error', 'Không tìm thấy đơn hàng.');

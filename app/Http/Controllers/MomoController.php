@@ -9,18 +9,18 @@ use Illuminate\Support\Facades\Log;
 
 class MomoController extends Controller
 {
-    public function return(Request $request, Order $order)
-    {
-        $order->load('items.product');
+    // public function return(Request $request, Order $order)
+    // {
+    //     $order->load('items.product');
 
-        if ($order->status !== 'pending') {
-            return redirect()
-                ->route('order.thankyou', $order)
-                ->with('success', 'Đơn hàng đã được xác nhận thanh toán.');
-        }
+    //     if ($order->status !== 'pending') {
+    //         return redirect()
+    //             ->route('order.thankyou', $order)
+    //             ->with('success', 'Đơn hàng đã được xác nhận thanh toán.');
+    //     }
 
-        return view('store.momo-pending', compact('order'));
-    }
+    //     return view('store.momo-pending', compact('order'));
+    // }
 
     /**
      * IPN: MoMo gọi server-to-server (POST JSON hoặc form). Không dùng CSRF.
@@ -55,5 +55,26 @@ class MomoController extends Controller
         }
 
         return response()->json(['message' => 'OK'], 200);
+    }
+
+    public function return(Request $request, Order $order)
+    {
+        $resultCode = $request->query('resultCode');
+        $message = $request->query('message');
+
+        if ($resultCode == 0) {
+            // Thanh toán thành công
+            if ($order->status === 'pending') {
+                $order->update(['status' => 'confirmed']);
+            }
+            return redirect()
+                ->route('order.thankyou', $order)
+                ->with('success', 'Thanh toán MoMo thành công!');
+        }
+
+        // Thanh toán thất bại
+        return redirect()
+            ->route('checkout.show')
+            ->with('error', 'Thanh toán MoMo thất bại: ' . ($message ?? 'Vui lòng thử lại'));
     }
 }

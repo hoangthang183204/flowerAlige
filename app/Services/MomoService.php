@@ -29,43 +29,36 @@ class MomoService
 
     public function isConfigured(): bool
     {
-        return ! empty($this->partnerCode) && ! empty($this->accessKey) && ! empty($this->secretKey);
+        return !empty($this->partnerCode) && !empty($this->accessKey) && !empty($this->secretKey);
     }
 
     /**
-     * Tạo chuỗi ký (request) cho captureWallet.
-     * Thứ tự key a-z: accessKey, amount, extraData, ipnUrl, orderId, orderInfo, partnerCode, redirectUrl, requestId, requestType
+     * Tạo chuỗi ký theo đúng định dạng MoMo
      */
     protected function makeSignature(array $params): string
     {
-        $data = [
-            'accessKey' => $this->accessKey,
-            'amount' => $params['amount'],
-            'extraData' => $params['extraData'] ?? '',
-            'ipnUrl' => $params['ipnUrl'],
-            'orderId' => $params['orderId'],
-            'orderInfo' => $params['orderInfo'],
-            'partnerCode' => $this->partnerCode,
-            'redirectUrl' => $params['redirectUrl'],
-            'requestId' => $params['requestId'],
-            'requestType' => $params['requestType'],
-        ];
-        ksort($data);
-        $raw = implode('&', array_map(fn ($k, $v) => $k . '=' . $v, array_keys($data), $data));
-
-        return hash_hmac('sha256', $raw, $this->secretKey);
+        // Loại bỏ dấu = ở cuối extraData nếu có
+        $extraData = rtrim($params['extraData'], '=');
+        
+        // Tạo chuỗi theo đúng thứ tự
+        $rawSignature = "accessKey=" . $this->accessKey
+            . "&amount=" . $params['amount']
+            . "&extraData=" . $extraData
+            . "&ipnUrl=" . $params['ipnUrl']
+            . "&orderId=" . $params['orderId']
+            . "&orderInfo=" . $params['orderInfo']
+            . "&partnerCode=" . $this->partnerCode
+            . "&redirectUrl=" . $params['redirectUrl']
+            . "&requestId=" . $params['requestId']
+            . "&requestType=" . $params['requestType'];
+        
+        Log::info('Raw signature:', ['raw' => $rawSignature]);
+        
+        return hash_hmac('sha256', $rawSignature, $this->secretKey);
     }
 
     /**
-     * Tạo thanh toán MoMo (e-wallet), trả về payUrl để redirect.
-     *
-     * @param  string  $orderId  Mã đơn hàng (unique, ví dụ: order_id hoặc "ORD_123_ts")
-     * @param  int  $amount  Số tiền VND (1000 - 50_000_000)
-     * @param  string  $orderInfo  Mô tả đơn hàng
-     * @param  string  $redirectUrl  URL redirect sau khi thanh toán (trên browser)
-     * @param  string  $ipnUrl  URL MoMo gọi server-to-server để báo kết quả
-     * @param  array  $userInfo  ['name','phoneNumber','email'] (optional)
-     * @return array{success: bool, payUrl?: string, message?: string}
+     * Tạo thanh toán MoMo
      */
     public function createPayment(
         string $orderId,
@@ -75,14 +68,21 @@ class MomoService
         string $ipnUrl,
         array $userInfo = []
     ): array {
-        if (! $this->isConfigured()) {
+        if (!$this->isConfigured()) {
+            Log::error('MoMo not configured');
             return ['success' => false, 'message' => 'MoMo chưa được cấu hình.'];
         }
 
         $amount = max(1000, min(50_000_000, (int) $amount));
         $requestId = $orderId . '_' . time();
-        $extraData = base64_encode(json_encode([]));
-
+        
+        // QUAN TRỌNG: extraData để TRỐNG hoặc dùng ký tự đặc biệt
+        // Cách 1: Để trống
+        $extraData = '';
+        
+        // Hoặc cách 2: Dùng JSON không có dấu =
+        // $extraData = urlencode(json_encode([]));
+        
         $params = [
             'amount' => $amount,
             'extraData' => $extraData,
@@ -93,14 +93,16 @@ class MomoService
             'requestId' => $requestId,
             'requestType' => 'captureWallet',
         ];
+        
         $signature = $this->makeSignature($params);
 
         $body = [
             'partnerCode' => $this->partnerCode,
+            'partnerName' => 'Flower Corner',
             'storeId' => $this->storeId,
             'storeName' => $this->storeName,
             'requestId' => $requestId,
-            'amount' => (int) $amount,
+            'amount' => $amount,
             'orderId' => $orderId,
             'orderInfo' => $orderInfo,
             'redirectUrl' => $redirectUrl,
@@ -109,10 +111,17 @@ class MomoService
             'extraData' => $extraData,
             'lang' => 'vi',
             'signature' => $signature,
+            'autoCapture' => true,
         ];
-        if (! empty($userInfo)) {
+        
+        if (!empty($userInfo)) {
             $body['userInfo'] = $userInfo;
         }
+
+        Log::info('MoMo Request:', [
+            'url' => $this->baseUrl . '/v2/gateway/api/create',
+            'body' => $body
+        ]);
 
         try {
             $response = Http::timeout(30)
@@ -123,63 +132,50 @@ class MomoService
             $data = $response->json();
             $resultCode = (int) ($data['resultCode'] ?? -1);
 
-            if ($resultCode === 0 && ! empty($data['payUrl'])) {
+            Log::info('MoMo Response:', [
+                'resultCode' => $resultCode,
+                'message' => $data['message'] ?? 'N/A',
+                'payUrl' => $data['payUrl'] ?? null
+            ]);
+
+            if ($resultCode === 0 && !empty($data['payUrl'])) {
                 return ['success' => true, 'payUrl' => $data['payUrl']];
             }
 
-            $msg = $data['message'] ?? $response->body();
-            Log::warning('MoMo create payment failed', [
-                'resultCode' => $resultCode,
-                'message' => $msg,
-                'orderId' => $orderId,
-            ]);
-
-            $userMessage = is_string($msg) ? $msg : 'Không tạo được link thanh toán MoMo.';
-            if ($resultCode === 41) {
-                $userMessage = 'Mã đơn hàng trùng. Vui lòng thử lại hoặc chọn COD/Chuyển khoản.';
-            } elseif ($resultCode === 22) {
-                $userMessage = 'Số tiền không hợp lệ (MoMo: 1.000 - 50.000.000 VND).';
-            } elseif ($resultCode === 20) {
-                $userMessage = 'Thông tin thanh toán không đúng. Kiểm tra cấu hình MoMo (Partner Code, Access Key, Secret Key) và chạy: php artisan config:clear';
-            }
-
-            return ['success' => false, 'message' => $userMessage];
+            $msg = $data['message'] ?? 'Unknown error';
+            return ['success' => false, 'message' => $msg];
+            
         } catch (\Throwable $e) {
-            Log::error('MoMo create payment error: ' . $e->getMessage());
-
-            return ['success' => false, 'message' => 'Lỗi kết nối MoMo. Kiểm tra mạng hoặc thử lại sau.'];
+            Log::error('MoMo error: ' . $e->getMessage());
+            return ['success' => false, 'message' => 'Lỗi kết nối: ' . $e->getMessage()];
         }
     }
 
-    /**
-     * Xác minh chữ ký IPN từ MoMo (callback server-to-server).
-     * Tham số theo tài liệu: accessKey, amount, extraData, message, orderId, orderInfo, orderType, partnerCode, payType, requestId, responseTime, resultCode, transId.
-     */
     public function verifyIpnSignature(array $params): bool
     {
         $expected = $params['signature'] ?? '';
         if (empty($expected)) {
             return false;
         }
-        $data = [
-            'accessKey' => $this->accessKey,
-            'amount' => $params['amount'] ?? 0,
-            'extraData' => $params['extraData'] ?? '',
-            'message' => $params['message'] ?? '',
-            'orderId' => $params['orderId'] ?? '',
-            'orderInfo' => $params['orderInfo'] ?? '',
-            'orderType' => $params['orderType'] ?? '',
-            'partnerCode' => $params['partnerCode'] ?? '',
-            'payType' => $params['payType'] ?? '',
-            'requestId' => $params['requestId'] ?? '',
-            'responseTime' => $params['responseTime'] ?? 0,
-            'resultCode' => $params['resultCode'] ?? -1,
-            'transId' => $params['transId'] ?? 0,
-        ];
-        ksort($data);
-        $raw = implode('&', array_map(fn ($k, $v) => $k . '=' . $v, array_keys($data), $data));
-        $signature = hash_hmac('sha256', $raw, $this->secretKey);
-
+        
+        $extraData = rtrim($params['extraData'] ?? '', '=');
+        
+        $rawSignature = "accessKey=" . ($params['accessKey'] ?? '')
+            . "&amount=" . ($params['amount'] ?? '')
+            . "&extraData=" . $extraData
+            . "&message=" . ($params['message'] ?? '')
+            . "&orderId=" . ($params['orderId'] ?? '')
+            . "&orderInfo=" . ($params['orderInfo'] ?? '')
+            . "&orderType=" . ($params['orderType'] ?? '')
+            . "&partnerCode=" . ($params['partnerCode'] ?? '')
+            . "&payType=" . ($params['payType'] ?? '')
+            . "&requestId=" . ($params['requestId'] ?? '')
+            . "&responseTime=" . ($params['responseTime'] ?? '')
+            . "&resultCode=" . ($params['resultCode'] ?? '')
+            . "&transId=" . ($params['transId'] ?? '');
+        
+        $signature = hash_hmac('sha256', $rawSignature, $this->secretKey);
+        
         return hash_equals($signature, $expected);
     }
 }

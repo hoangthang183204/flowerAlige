@@ -45,14 +45,37 @@ class VnPayService
         string $ipAddr = '127.0.0.1',
         string $locale = 'vn'
     ): array {
+        date_default_timezone_set('Asia/Ho_Chi_Minh');
+        $now = now('Asia/Ho_Chi_Minh');
+        $expire = $now->copy()->addMinutes(15);
+
+        $createDate = $now->format('YmdHis');
+        $expireDate = $expire->format('YmdHis');
+
+        Log::info('VNPay time with Carbon', [
+            'now_vn' => $now->toDateTimeString(),
+            'createDate' => $createDate,
+            'expireDate' => $expireDate,
+            'timezone' => $now->timezoneName
+        ]);
         if (! $this->isConfigured()) {
             return ['success' => false, 'message' => 'VNPay chưa được cấu hình.'];
         }
 
         $amount = max(1000, min(999999999999, (int) $amount));
-        $vnpAmount = $amount * 100; // VNPay yêu cầu nhân 100
-        $createDate = date('YmdHis');
+        $vnpAmount = $amount * 100;
+        $createDate = date('YmdHis');  // Giờ sẽ là 09:00:19 thay vì 02:00:19
         $expireDate = date('YmdHis', strtotime('+15 minutes'));
+
+        // Debug log để kiểm tra
+        Log::info('VNPay time debug', [
+            'server_time_utc' => gmdate('Y-m-d H:i:s'),
+            'vn_time' => date('Y-m-d H:i:s'),
+            'timezone' => date_default_timezone_get(),
+            'createDate' => $createDate,
+            'expireDate' => $expireDate
+        ]);
+
 
         $orderInfoSafe = $this->sanitizeOrderInfo($orderInfo);
 
@@ -90,19 +113,74 @@ class VnPayService
         $str = trim($str);
         $str = preg_replace('/[^\pL\pN\s\-]/u', '', $str);
         $map = [
-            'à' => 'a', 'á' => 'a', 'ả' => 'a', 'ã' => 'a', 'ạ' => 'a',
-            'ă' => 'a', 'ằ' => 'a', 'ắ' => 'a', 'ẳ' => 'a', 'ẵ' => 'a', 'ặ' => 'a',
-            'â' => 'a', 'ầ' => 'a', 'ấ' => 'a', 'ẩ' => 'a', 'ẫ' => 'a', 'ậ' => 'a',
-            'è' => 'e', 'é' => 'e', 'ẻ' => 'e', 'ẽ' => 'e', 'ẹ' => 'e',
-            'ê' => 'e', 'ề' => 'e', 'ế' => 'e', 'ể' => 'e', 'ễ' => 'e', 'ệ' => 'e',
-            'ì' => 'i', 'í' => 'i', 'ỉ' => 'i', 'ĩ' => 'i', 'ị' => 'i',
-            'ò' => 'o', 'ó' => 'o', 'ỏ' => 'o', 'õ' => 'o', 'ọ' => 'o',
-            'ô' => 'o', 'ồ' => 'o', 'ố' => 'o', 'ổ' => 'o', 'ỗ' => 'o', 'ộ' => 'o',
-            'ơ' => 'o', 'ờ' => 'o', 'ớ' => 'o', 'ở' => 'o', 'ỡ' => 'o', 'ợ' => 'o',
-            'ù' => 'u', 'ú' => 'u', 'ủ' => 'u', 'ũ' => 'u', 'ụ' => 'u',
-            'ư' => 'u', 'ừ' => 'u', 'ứ' => 'u', 'ử' => 'u', 'ữ' => 'u', 'ự' => 'u',
-            'ỳ' => 'y', 'ý' => 'y', 'ỷ' => 'y', 'ỹ' => 'y', 'ỵ' => 'y',
-            'đ' => 'd', 'Đ' => 'D',
+            'à' => 'a',
+            'á' => 'a',
+            'ả' => 'a',
+            'ã' => 'a',
+            'ạ' => 'a',
+            'ă' => 'a',
+            'ằ' => 'a',
+            'ắ' => 'a',
+            'ẳ' => 'a',
+            'ẵ' => 'a',
+            'ặ' => 'a',
+            'â' => 'a',
+            'ầ' => 'a',
+            'ấ' => 'a',
+            'ẩ' => 'a',
+            'ẫ' => 'a',
+            'ậ' => 'a',
+            'è' => 'e',
+            'é' => 'e',
+            'ẻ' => 'e',
+            'ẽ' => 'e',
+            'ẹ' => 'e',
+            'ê' => 'e',
+            'ề' => 'e',
+            'ế' => 'e',
+            'ể' => 'e',
+            'ễ' => 'e',
+            'ệ' => 'e',
+            'ì' => 'i',
+            'í' => 'i',
+            'ỉ' => 'i',
+            'ĩ' => 'i',
+            'ị' => 'i',
+            'ò' => 'o',
+            'ó' => 'o',
+            'ỏ' => 'o',
+            'õ' => 'o',
+            'ọ' => 'o',
+            'ô' => 'o',
+            'ồ' => 'o',
+            'ố' => 'o',
+            'ổ' => 'o',
+            'ỗ' => 'o',
+            'ộ' => 'o',
+            'ơ' => 'o',
+            'ờ' => 'o',
+            'ớ' => 'o',
+            'ở' => 'o',
+            'ỡ' => 'o',
+            'ợ' => 'o',
+            'ù' => 'u',
+            'ú' => 'u',
+            'ủ' => 'u',
+            'ũ' => 'u',
+            'ụ' => 'u',
+            'ư' => 'u',
+            'ừ' => 'u',
+            'ứ' => 'u',
+            'ử' => 'u',
+            'ữ' => 'u',
+            'ự' => 'u',
+            'ỳ' => 'y',
+            'ý' => 'y',
+            'ỷ' => 'y',
+            'ỹ' => 'y',
+            'ỵ' => 'y',
+            'đ' => 'd',
+            'Đ' => 'D',
         ];
         $str = strtr(mb_strtolower($str), $map);
         return mb_substr($str, 0, 255);

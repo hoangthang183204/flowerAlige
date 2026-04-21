@@ -9,6 +9,11 @@ class Order extends Model
 {
     use HasFactory;
 
+    protected $casts = [
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+    ];
+
     protected $fillable = [
         'user_id',
         'customer_name',
@@ -19,7 +24,15 @@ class Order extends Model
         'status',
         'total_amount',
         'notes',
+        'qr_code',
     ];
+
+    protected $appends = ['qr_code_url'];
+
+    public function getQrCodeUrlAttribute()
+    {
+        return $this->qr_code ? asset('storage/' . $this->qr_code) : null;
+    }
 
     public function items()
     {
@@ -29,37 +42,5 @@ class Order extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
-    }
-
-    /**
-     * Return allowed next statuses for each current status.
-     *
-     * @return array<string, string[]>
-     */
-    public function allowedStatusTransitions(): array
-    {
-        return [
-            'pending' => ['confirmed', 'cancelled'],
-            'confirmed' => ['shipping', 'cancelled'],
-            'shipping' => ['completed'],
-            'completed' => [],
-            'cancelled' => [],
-        ];
-    }
-
-    /**
-     * Check if the order can transition from current status to given status.
-     */
-    public function canTransitionTo(string $to): bool
-    {
-        $from = $this->status;
-
-        if ($from === $to) {
-            return true;
-        }
-
-        $map = $this->allowedStatusTransitions();
-
-        return in_array($to, $map[$from] ?? [], true);
     }
 }
