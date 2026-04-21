@@ -30,11 +30,21 @@ class OrderController extends Controller
             'status' => ['required', 'in:pending,confirmed,shipping,completed,cancelled'],
         ]);
 
+        $newStatus = $validated['status'];
+
+        if ($order->status === $newStatus) {
+            return redirect()->route('admin.orders.show', $order)->with('info', 'Trạng thái không thay đổi.');
+        }
+
+        if (! $order->canTransitionTo($newStatus)) {
+            return redirect()->route('admin.orders.show', $order)
+                ->with('error', "Không thể chuyển trạng thái từ {$order->status} sang {$newStatus}.");
+        }
+
         $order->update([
-            'status' => $validated['status'],
+            'status' => $newStatus,
         ]);
 
         return redirect()->route('admin.orders.show', $order)->with('success', 'Đã cập nhật trạng thái đơn hàng.');
     }
 }
-
