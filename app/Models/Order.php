@@ -9,6 +9,11 @@ class Order extends Model
 {
     use HasFactory;
 
+    protected $casts = [
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+    ];
+
     protected $fillable = [
         'user_id',
         'customer_name',
@@ -19,7 +24,15 @@ class Order extends Model
         'status',
         'total_amount',
         'notes',
+        'qr_code',
     ];
+
+    protected $appends = ['qr_code_url'];
+
+    public function getQrCodeUrlAttribute()
+    {
+        return $this->qr_code ? asset('storage/' . $this->qr_code) : null;
+    }
 
     public function items()
     {
@@ -31,4 +44,3 @@ class Order extends Model
         return $this->belongsTo(User::class);
     }
 }
-

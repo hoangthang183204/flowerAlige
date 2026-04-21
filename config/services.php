@@ -40,7 +40,7 @@ return [
     ],
 
     'momo' => [
-        'env' => env('MOMO_ENV', 'sandbox'), // sandbox | production
+        'env' => env('MOMO_ENV', 'sandbox'),
         'partner_code' => env('MOMO_PARTNER_CODE'),
         'access_key' => env('MOMO_ACCESS_KEY'),
         'secret_key' => env('MOMO_SECRET_KEY'),
@@ -48,8 +48,9 @@ return [
         'store_name' => env('MOMO_STORE_NAME', 'Flower Corner'),
     ],
 
+    
     'vnpay' => [
-        'env' => env('VNPAY_ENV', 'sandbox'), // sandbox | production
+        'env' => env('VNPAY_ENV', 'sandbox'),
         'tmn_code' => env('VNPAY_TMN_CODE'),
         'hash_secret' => env('VNPAY_HASH_SECRET'),
     ],

@@ -24,14 +24,77 @@ Route::get('/thank-you/{order}', [StoreController::class, 'thankYou'])->name('or
 Route::get('/momo/return/{order}', [MomoController::class, 'return'])->name('momo.return');
 Route::post('/momo/ipn', [MomoController::class, 'ipn'])->name('momo.ipn');
 
+// Thêm route test
+Route::get('/test-momo-payment', function () {
+    $momo = new \App\Services\MomoService();
+
+    $orderId = 'TEST_' . time();
+    $amount = 50000;
+    $orderInfo = 'Test thanh toán MoMo';
+    $redirectUrl = route('momo.return', ['order' => 'TEST_' . time()]);
+    $ipnUrl = route('momo.ipn');
+
+    $result = $momo->createPayment(
+        $orderId,
+        $amount,
+        $orderInfo,
+        $redirectUrl,
+        $ipnUrl
+    );
+
+    if ($result['success']) {
+        return redirect($result['payUrl']);
+    }
+
+    return response()->json($result);
+});
+
+Route::get('/test-timezone', function () {
+    return [
+        'php_timezone' => date_default_timezone_get(),
+        'php_now' => date('Y-m-d H:i:s'),
+        'laravel_config' => config('app.timezone'),
+        'laravel_now' => now()->toDateTimeString(),
+        'laravel_now_vn' => now('Asia/Ho_Chi_Minh')->toDateTimeString(),
+        'utc_now' => now('UTC')->toDateTimeString(),
+        'server_time' => shell_exec('date'),
+    ];
+});
+
 Route::get('/vnpay/return', [VnPayController::class, 'return'])->name('vnpay.return');
 Route::post('/vnpay/ipn', [VnPayController::class, 'ipn'])->name('vnpay.ipn');
+
+Route::get('/test-vnpay', function () {
+    $vnpay = new \App\Services\VnPayService();
+
+    $txnRef = 'TEST_' . time();
+    $amount = 50000;
+    $orderInfo = 'Test thanh toan VNPay Flower Corner';
+    $returnUrl = route('vnpay.return');
+    $ipAddr = request()->ip() ?: '127.0.0.1';
+
+    $result = $vnpay->createPaymentUrl($txnRef, $amount, $orderInfo, $returnUrl, $ipAddr);
+
+    if ($result['success']) {
+        return redirect($result['payment_url']);
+    }
+
+    return response()->json($result);
+});
 
 // Blog (KH)
 Route::get('/blog', [PostController::class, 'index'])->name('blog.index');
 Route::get('/blog/{slug}', [PostController::class, 'show'])->name('blog.show');
 
 Route::post('/chat', [ChatController::class, 'chat'])->name('chat.send');
+
+Route::get('/test-openai', function () {
+    $key = config('services.openai.key');
+    return response()->json([
+        'has_key' => !empty($key),
+        'key_preview' => substr($key, 0, 10) . '...',
+    ]);
+});
 
 // (dev-only routes removed)
 
@@ -42,6 +105,11 @@ Route::middleware('auth')->group(function () {
     Route::post('/cart/update', [StoreController::class, 'updateCart'])->name('cart.update');
     Route::get('/checkout', [StoreController::class, 'checkout'])->name('checkout.show');
     Route::post('/checkout', [StoreController::class, 'placeOrder'])->name('checkout.place');
+
+    Route::get('/reset-cart', function () {
+        session()->forget('cart');
+        return redirect()->route('cart.show')->with('success', 'Đã reset giỏ hàng!');
+    });
 
     Route::get('/dashboard', function () {
         $user = auth()->user();

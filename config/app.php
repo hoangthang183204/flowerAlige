@@ -13,6 +13,9 @@ return [
     |
     */
 
+    // 'timezone' => 'Asia/Ho_Chi_Minh', // Đổi từ UTC thành Asia/Ho_Chi_Minh
+    'timezone' => env('APP_TIMEZONE', 'Asia/Ho_Chi_Minh'),
+
     'name' => env('APP_NAME', 'Laravel'),
 
     /*

@@ -46,10 +46,7 @@ class StoreController extends Controller
             ->orderByDesc('created_at')
             ->get();
 
-        // Banner lăng hoa - cũng lấy từ bảng banners nhưng bạn có thể 
-        // lọc theo một cách khác, ví dụ dùng category_id hoặc tag
-        // Tạm thời để trống nếu chưa có dữ liệu
-        $condolenceBanners = collect(); // Collection rỗng
+        $condolenceBanners = collect();
 
         return view('store.home', compact(
             'featuredProducts',
@@ -124,6 +121,23 @@ class StoreController extends Controller
     public function cart(Request $request)
     {
         $cart = $this->getCart($request);
+
+        $normalizedCart = [];
+        foreach ($cart as $productId => $value) {
+            if (is_array($value)) {
+                $normalizedCart[$productId] = (int) ($value['quantity'] ?? 0);
+            } else {
+                $normalizedCart[$productId] = (int) $value;
+            }
+        }
+
+        $normalizedCart = array_filter($normalizedCart, fn($qty) => $qty > 0);
+
+        if ($cart != $normalizedCart) {
+            $this->saveCart($request, $normalizedCart);
+            $cart = $normalizedCart;
+        }
+
         $productIds = array_keys($cart);
 
         $products = $productIds
@@ -136,7 +150,7 @@ class StoreController extends Controller
         foreach ($cart as $productId => $quantity) {
             $product = $products->get($productId);
 
-            if (! $product) {
+            if (!$product) {
                 continue;
             }
 
@@ -164,7 +178,16 @@ class StoreController extends Controller
         $quantity = $validated['quantity'] ?? 1;
 
         $cart = $this->getCart($request);
-        $current = $cart[$product->id] ?? 0;
+
+        $current = 0;
+        if (isset($cart[$product->id])) {
+            if (is_array($cart[$product->id])) {
+                $current = (int) ($cart[$product->id]['quantity'] ?? 0);
+            } else {
+                $current = (int) $cart[$product->id];
+            }
+        }
+
         $newQuantity = $current + $quantity;
 
         if (isset($product->stock) && $product->stock >= 0 && $newQuantity > $product->stock) {
@@ -198,7 +221,7 @@ class StoreController extends Controller
             $qty = (int) $item['quantity'];
 
             $product = $products->get($pid);
-            if ($qty <= 0 || ! $product) {
+            if ($qty <= 0 || !$product) {
                 continue;
             }
 
@@ -214,7 +237,7 @@ class StoreController extends Controller
 
         $this->saveCart($request, $cart);
 
-        if (! empty($messages)) {
+        if (!empty($messages)) {
             return redirect()->route('cart.show')->with('error', implode(' ', $messages));
         }
 
@@ -225,8 +248,23 @@ class StoreController extends Controller
     {
         $cart = $this->getCart($request);
 
-        if (empty($cart)) {
+        $normalizedCart = [];
+        foreach ($cart as $productId => $value) {
+            if (is_array($value)) {
+                $normalizedCart[$productId] = (int) ($value['quantity'] ?? 0);
+            } else {
+                $normalizedCart[$productId] = (int) $value;
+            }
+        }
+        $normalizedCart = array_filter($normalizedCart, fn($qty) => $qty > 0);
+
+        if (empty($normalizedCart)) {
             return redirect()->route('cart.show')->with('error', 'Giỏ hàng đang trống.');
+        }
+
+        if ($cart != $normalizedCart) {
+            $this->saveCart($request, $normalizedCart);
+            $cart = $normalizedCart;
         }
 
         $productIds = array_keys($cart);
@@ -239,7 +277,7 @@ class StoreController extends Controller
         foreach ($cart as $productId => $quantity) {
             $product = $products->get($productId);
 
-            if (! $product) {
+            if (!$product) {
                 continue;
             }
 
@@ -255,187 +293,12 @@ class StoreController extends Controller
 
         $user = $request->user();
 
-        // Lấy đơn hàng gần nhất của user để dùng làm dữ liệu mặc định nếu cần
         $lastOrder = null;
         if ($user) {
             $lastOrder = Order::where('user_id', $user->id)->orderByDesc('created_at')->first();
         }
 
         return view('store.checkout', compact('items', 'total', 'user', 'lastOrder'));
-    }
-
-    public function placeOrder(Request $request)
-    {
-        $cart = $this->getCart($request);
-
-        if (empty($cart)) {
-            return redirect()->route('cart.show')->with('error', 'Giỏ hàng đang trống.');
-        }
-
-        $validated = $request->validate([
-            'customer_name' => ['required', 'string', 'max:255'],
-            'customer_email' => ['nullable', 'email', 'max:255'],
-            'customer_phone' => ['required', 'string', 'max:20'],
-            'shipping_address' => ['required', 'string', 'max:500'],
-            'payment_method' => ['required', 'in:cod,bank_transfer,momo,vnpay'],
-            'notes' => ['nullable', 'string', 'max:1000'],
-        ]);
-
-        $productIds = array_keys($cart);
-
-        $products = Product::whereIn('id', $productIds)
-            ->where('is_active', true)
-            ->lockForUpdate()
-            ->get()
-            ->keyBy('id');
-
-        if ($products->isEmpty()) {
-            return redirect()->route('cart.show')->with('error', 'Giỏ hàng không hợp lệ.');
-        }
-
-        $order = null;
-
-        DB::transaction(function () use ($request, $products, $cart, $validated, &$order) {
-            $itemsData = [];
-            $total = 0;
-
-            foreach ($cart as $productId => $quantity) {
-                $product = $products->get($productId);
-
-                if (! $product || $quantity <= 0) {
-                    continue;
-                }
-
-                $quantity = min($quantity, max(0, (int) $product->stock));
-
-                if ($quantity === 0) {
-                    continue;
-                }
-
-                $subtotal = $product->price * $quantity;
-                $total += $subtotal;
-
-                $itemsData[] = [
-                    'product' => $product,
-                    'quantity' => $quantity,
-                    'subtotal' => $subtotal,
-                ];
-            }
-
-            if (empty($itemsData)) {
-                throw new \RuntimeException('Không có sản phẩm hợp lệ trong giỏ hàng.');
-            }
-
-            $order = Order::create([
-                'user_id' => $request->user()?->id,
-                'customer_name' => $validated['customer_name'],
-                'customer_email' => $validated['customer_email'] ?? null,
-                'customer_phone' => $validated['customer_phone'],
-                'shipping_address' => $validated['shipping_address'],
-                'payment_method' => $validated['payment_method'],
-                'status' => 'pending',
-                'total_amount' => $total,
-                'notes' => $validated['notes'] ?? null,
-            ]);
-
-            foreach ($itemsData as $item) {
-                /** @var \App\Models\Product $product */
-                $product = $item['product'];
-                $quantity = $item['quantity'];
-
-                OrderItem::create([
-                    'order_id' => $order->id,
-                    'product_id' => $product->id,
-                    'quantity' => $quantity,
-                    'unit_price' => $product->price,
-                    'subtotal' => $item['subtotal'],
-                ]);
-
-                $product->decrement('stock', $quantity);
-            }
-        });
-
-        $request->session()->forget('cart');
-
-        // Nếu user đã đăng nhập thì cập nhật một số thông tin cơ bản để tự điền lần sau
-        if ($request->user()) {
-            $u = $request->user();
-
-            $data = [
-                'name' => $validated['customer_name'],
-            ];
-
-            // Chỉ cập nhật `phone` nếu cột tồn tại trong bảng `users` để tránh lỗi khi chưa migrate
-            if (Schema::hasColumn('users', 'phone')) {
-                $data['phone'] = $validated['customer_phone'];
-            }
-
-            $u->fill($data);
-            $u->save();
-        }
-
-        if ($validated['payment_method'] === 'momo') {
-            $momo = new MomoService;
-            if (! $momo->isConfigured()) {
-                return redirect()
-                    ->route('checkout.show')
-                    ->withInput()
-                    ->with('error', 'Thanh toán MoMo tạm thời chưa khả dụng. Vui lòng chọn phương thức khác.');
-            }
-
-            $amount = (int) round($order->total_amount);
-            $orderId = (string) $order->id;
-            $orderInfo = 'Thanh toán đơn hàng #' . $order->id . ' - Flower Corner';
-            $redirectUrl = url()->route('momo.return', ['order' => $order->id]);
-            $ipnUrl = url()->route('momo.ipn');
-            $userInfo = array_filter([
-                'name' => $validated['customer_name'],
-                'phoneNumber' => $validated['customer_phone'],
-                'email' => $validated['customer_email'] ?? null,
-            ]);
-
-            $result = $momo->createPayment($orderId, $amount, $orderInfo, $redirectUrl, $ipnUrl, $userInfo);
-
-            if ($result['success']) {
-                return redirect()->away($result['payUrl']);
-            }
-
-            return redirect()
-                ->route('checkout.show')
-                ->withInput()
-                ->with('error', $result['message'] ?? 'Không tạo được link thanh toán MoMo. Vui lòng thử lại hoặc chọn COD/Chuyển khoản.');
-        }
-
-        if ($validated['payment_method'] === 'vnpay') {
-            $vnpay = new VnPayService;
-            if (! $vnpay->isConfigured()) {
-                return redirect()
-                    ->route('checkout.show')
-                    ->withInput()
-                    ->with('error', 'Thanh toán VNPay tạm thời chưa khả dụng. Vui lòng chọn phương thức khác.');
-            }
-
-            $amount = (int) round($order->total_amount);
-            $txnRef = (string) $order->id;
-            $orderInfo = 'Thanh toan don hang #' . $order->id . ' Flower Corner';
-            $returnUrl = url()->route('vnpay.return');
-            $ipAddr = $request->ip() ?: '127.0.0.1';
-
-            $result = $vnpay->createPaymentUrl($txnRef, $amount, $orderInfo, $returnUrl, $ipAddr);
-
-            if ($result['success']) {
-                return redirect()->away($result['payment_url']);
-            }
-
-            return redirect()
-                ->route('checkout.show')
-                ->withInput()
-                ->with('error', $result['message'] ?? 'Không tạo được link thanh toán VNPay. Vui lòng thử lại hoặc chọn phương thức khác.');
-        }
-
-        return redirect()
-            ->route('order.thankyou', $order)
-            ->with('success', 'Đặt hàng thành công. Chúng tôi sẽ liên hệ xác nhận trong thời gian sớm nhất.');
     }
 
     public function thankYou(Order $order)
@@ -477,13 +340,11 @@ class StoreController extends Controller
             abort(403);
         }
 
-        // Chỉ cho hủy khi chưa chuyển đi hoặc chưa hoàn thành
         if (in_array($order->status, ['shipping', 'completed', 'cancelled'], true)) {
             return redirect()->route('orders.my.show', $order)->with('error', 'Đơn hàng không thể hủy ở trạng thái hiện tại.');
         }
 
         DB::transaction(function () use ($order) {
-            // Hoàn trả tồn kho
             foreach ($order->items as $item) {
                 if ($item->product) {
                     $item->product->increment('stock', $item->quantity);
@@ -494,5 +355,198 @@ class StoreController extends Controller
         });
 
         return redirect()->route('orders.my')->with('success', 'Đã hủy đơn hàng.');
+    }
+
+    public function placeOrder(Request $request)
+    {
+        $cart = $this->getCart($request);
+
+        if (empty($cart)) {
+            return redirect()->route('cart.show')->with('error', 'Giỏ hàng đang trống.');
+        }
+
+        $validated = $request->validate([
+            'customer_name' => ['required', 'string', 'max:255'],
+            'customer_email' => ['nullable', 'email', 'max:255'],
+            'customer_phone' => ['required', 'string', 'max:20'],
+            'shipping_address' => ['required', 'string', 'max:500'],
+            'payment_method' => ['required', 'in:cod,bank_transfer,momo,vnpay'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $productIds = array_keys($cart);
+
+        $products = Product::whereIn('id', $productIds)
+            ->where('is_active', true)
+            ->lockForUpdate()
+            ->get()
+            ->keyBy('id');
+
+        if ($products->isEmpty()) {
+            return redirect()->route('cart.show')->with('error', 'Giỏ hàng không hợp lệ.');
+        }
+
+        $order = null;
+
+        DB::transaction(function () use ($request, $products, $cart, $validated, &$order) {
+            $itemsData = [];
+            $total = 0;
+
+            foreach ($cart as $productId => $quantity) {
+                $product = $products->get($productId);
+
+                if (!$product || $quantity <= 0) {
+                    continue;
+                }
+
+                $quantity = min($quantity, max(0, (int) $product->stock));
+
+                if ($quantity === 0) {
+                    continue;
+                }
+
+                $subtotal = $product->price * $quantity;
+                $total += $subtotal;
+
+                $itemsData[] = [
+                    'product' => $product,
+                    'quantity' => $quantity,
+                    'subtotal' => $subtotal,
+                ];
+            }
+
+            if (empty($itemsData)) {
+                throw new \RuntimeException('Không có sản phẩm hợp lệ trong giỏ hàng.');
+            }
+
+            $order = Order::create([
+                'user_id' => $request->user()?->id,
+                'customer_name' => $validated['customer_name'],
+                'customer_email' => $validated['customer_email'] ?? null,
+                'customer_phone' => $validated['customer_phone'],
+                'shipping_address' => $validated['shipping_address'],
+                'payment_method' => $validated['payment_method'],
+                'status' => 'pending',
+                'total_amount' => $total,
+                'notes' => $validated['notes'] ?? null,
+            ]);
+
+            foreach ($itemsData as $item) {
+                $product = $item['product'];
+                $quantity = $item['quantity'];
+
+                OrderItem::create([
+                    'order_id' => $order->id,
+                    'product_id' => $product->id,
+                    'quantity' => $quantity,
+                    'unit_price' => $product->price,
+                    'subtotal' => $item['subtotal'],
+                ]);
+
+                $product->decrement('stock', $quantity);
+            }
+        });
+
+        // Cập nhật thông tin user nếu cần
+        if ($request->user()) {
+            $u = $request->user();
+            $data = ['name' => $validated['customer_name']];
+            if (Schema::hasColumn('users', 'phone')) {
+                $data['phone'] = $validated['customer_phone'];
+            }
+            $u->fill($data);
+            $u->save();
+        }
+
+        // XỬ LÝ MoMo
+        if ($validated['payment_method'] === 'momo') {
+            $momo = new MomoService;
+            if (!$momo->isConfigured()) {
+                return redirect()
+                    ->route('checkout.show')
+                    ->withInput()
+                    ->with('error', 'Thanh toán MoMo tạm thời chưa khả dụng. Vui lòng chọn phương thức khác.');
+            }
+
+            $amount = (int) round($order->total_amount);
+            $orderId = (string) $order->id;
+            $orderInfo = 'Thanh toán đơn hàng #' . $order->id . ' - Flower Corner';
+            $redirectUrl = route('momo.return', ['order' => $order->id]);
+            $ipnUrl = route('momo.ipn');
+            $userInfo = array_filter([
+                'name' => $validated['customer_name'],
+                'phoneNumber' => $validated['customer_phone'],
+                'email' => $validated['customer_email'] ?? null,
+            ]);
+
+            $result = $momo->createPayment($orderId, $amount, $orderInfo, $redirectUrl, $ipnUrl, $userInfo);
+
+            if ($result['success']) {
+                $request->session()->forget('cart');
+                return redirect()->away($result['payUrl']);
+            }
+
+            $order->delete();
+            return redirect()
+                ->route('checkout.show')
+                ->withInput()
+                ->with('error', $result['message'] ?? 'Không tạo được link thanh toán MoMo. Vui lòng thử lại hoặc chọn COD/Chuyển khoản.');
+        }
+
+        // XỬ LÝ VNPay
+        if ($validated['payment_method'] === 'vnpay') {
+            $vnpay = new VnPayService;
+            if (!$vnpay->isConfigured()) {
+                return redirect()
+                    ->route('checkout.show')
+                    ->withInput()
+                    ->with('error', 'Thanh toán VNPay tạm thời chưa khả dụng. Vui lòng chọn phương thức khác.');
+            }
+
+            $amount = (int) round($order->total_amount);
+            $txnRef = (string) $order->id;
+            $orderInfo = 'Thanh toan don hang #' . $order->id . ' Flower Corner';
+            $returnUrl = route('vnpay.return');
+            $ipAddr = $request->ip() ?: '127.0.0.1';
+
+            $result = $vnpay->createPaymentUrl($txnRef, $amount, $orderInfo, $returnUrl, $ipAddr);
+
+            if ($result['success']) {
+                $request->session()->forget('cart');
+                return redirect()->away($result['payment_url']);
+            }
+
+            $order->delete();
+            return redirect()
+                ->route('checkout.show')
+                ->withInput()
+                ->with('error', $result['message'] ?? 'Không tạo được link thanh toán VNPay.');
+        }
+
+        // XỬ LÝ COD - Xóa giỏ hàng, chuyển đến trang cảm ơn
+        if ($validated['payment_method'] === 'cod') {
+            $request->session()->forget('cart');
+            $order->update(['status' => 'confirmed']);
+            
+            return redirect()
+                ->route('order.thankyou', $order)
+                ->with('success', 'Đặt hàng thành công. Chúng tôi sẽ liên hệ xác nhận trong thời gian sớm nhất.');
+        }
+
+        // XỬ LÝ BANK TRANSFER - Chuyển đến trang chi tiết đơn hàng để hiển thị QR
+        if ($validated['payment_method'] === 'bank_transfer') {
+            $request->session()->forget('cart');
+            
+            return redirect()
+                ->route('orders.my.show', $order)
+                ->with('success', 'Đặt hàng thành công! Vui lòng quét mã QR để thanh toán.')
+                ->with('show_qr', true);
+        }
+
+        // Fallback (không nên xảy ra)
+        $request->session()->forget('cart');
+        return redirect()
+            ->route('order.thankyou', $order)
+            ->with('success', 'Đặt hàng thành công.');
     }
 }
