@@ -8,8 +8,8 @@
             <div
                 style="border-radius:1rem;overflow:hidden;background:#fff2f2;display:flex;align-items:center;justify-content:center;min-height:260px;margin-bottom:1rem;">
                 @if ($product->image_path)
-                    <img src="{{ asset($product->image_path) }}" alt="{{ $product->name }}"
-                        style="max-width:100%;max-height:100%;object-fit:cover;">
+                    <img src="{{ asset($product->image_path) }}" alt="{{ $product->name }} "
+                        style="width:200px;height:300px;object-fit:cover;">
                 @else
                     <span style="font-size:3rem;">💐</span>
                 @endif
