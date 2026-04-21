@@ -43,7 +43,7 @@
             @endif
         </div>
 
-        {{-- ========== PHẦN QR CODE CHO BANK TRANSFER ========== --}}
+        {{-- ========== PHẦN QR CODE DÙNG ẢNH CỦA BẠN ========== --}}
         @if ($order->payment_method === 'bank_transfer' && $order->status === 'pending')
             <div
                 style="flex:1 1 320px;border-radius:.9rem;border:1px solid #e3e3e0;padding:1rem;background:#fff;text-align:center;">
@@ -53,17 +53,17 @@
                         đ</strong>
                 </div>
 
-                {{-- QR Code - DÙNG DIV ĐỂ QRCODE.JS VẼ CANVAS VÀO --}}
-                <div id="qr-container" style="margin: 1rem auto; cursor: pointer; display: inline-block;"
-                    onclick="showFullQR()">
-                    <div id="qr-image" style="width: 200px; height: 200px;"></div>
+                {{-- QR CODE CỦA BẠN - Chỉ cần đổi đường dẫn ảnh --}}
+                <div style="margin: 1rem auto; cursor: pointer; display: inline-block;" onclick="showFullQR()">
+                    <img src="{{ asset('images/qr-code.jpg') }}" alt="QR Code thanh toán"
+                        style="width: 200px; height: 200px; border-radius: 8px; border: 1px solid #e3e3e0;">
                     <p style="font-size: .75rem; color: #999; margin-top: .5rem;">Nhấn vào QR để phóng to</p>
                 </div>
 
                 {{-- Thông tin tài khoản --}}
                 <div style="background:#f8f8f5;padding:.8rem;border-radius:.5rem;text-align:left;font-size:.8rem;">
                     <div style="font-weight:600;margin-bottom:.5rem;">🏦 Thông tin tài khoản:</div>
-                    <p style="margin:.2rem 0;"><strong>Ngân hàng:</strong> Vietcombank</p>
+                    <p style="margin:.2rem 0;"><strong>Ngân hàng:</strong> Teckcombank</p>
                     <p style="margin:.2rem 0;"><strong>Số tài khoản:</strong> 1234567890</p>
                     <p style="margin:.2rem 0;"><strong>Chủ tài khoản:</strong> FLOWER CORNER</p>
                     <p style="margin:.2rem 0;"><strong>Nội dung:</strong> DH{{ $order->id }} -
@@ -82,7 +82,7 @@
         style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:9999;cursor:pointer;"
         onclick="closeFullQR()">
         <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;">
-            <img id="full-qr-image" src="" style="max-width:90%;max-height:90%;border-radius:12px;">
+            <img src="{{ asset('images/qr-code.jpg') }}" style="max-width:90%;max-height:90%;border-radius:12px;">
         </div>
     </div>
 
@@ -136,93 +136,22 @@
     </a>
 @endsection
 
-{{-- JavaScript tạo QR --}}
+{{-- JavaScript đơn giản để mở modal --}}
 @push('scripts')
-    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            @if ($order->payment_method === 'bank_transfer' && $order->status === 'pending')
-                console.log('Creating QR for bank transfer...');
-
-                // Nội dung QR
-                const qrContent = `Chuyen khoan: {{ number_format($order->total_amount, 0, ',', '.') }}d
-Ngan hang: Vietcombank
-So TK: 1234567890
-Chu TK: FLOWER CORNER
-Noi dung: DH{{ $order->id }} {{ $order->customer_name }}`;
-
-                console.log('QR Content:', qrContent);
-
-                // Tạo QR code vào div
-                try {
-                    const qrDiv = document.getElementById("qr-image");
-                    if (qrDiv) {
-                        // Xóa nội dung cũ nếu có
-                        qrDiv.innerHTML = '';
-
-                        new QRCode(qrDiv, {
-                            text: qrContent,
-                            width: 200,
-                            height: 200,
-                            colorDark: "#000000",
-                            colorLight: "#ffffff",
-                            correctLevel: QRCode.CorrectLevel.H
-                        });
-
-                        console.log('QR code created successfully');
-
-                        // Lưu ảnh QR cho modal
-                        setTimeout(function() {
-                            const qrCanvas = qrDiv.querySelector('canvas');
-                            if (qrCanvas) {
-                                const fullQrImg = document.getElementById('full-qr-image');
-                                if (fullQrImg) {
-                                    fullQrImg.src = qrCanvas.toDataURL();
-                                }
-                                console.log('QR canvas saved for modal');
-                            }
-                        }, 200);
-                    } else {
-                        console.error('qr-image div not found');
-                    }
-                } catch (e) {
-                    console.error('QR creation error:', e);
-                }
-
-                // Tự động mở modal nếu có flag show_qr
-                @if (session('show_qr'))
-                    console.log('Auto showing QR modal');
-                    setTimeout(function() {
-                        showFullQR();
-                    }, 800);
-                @endif
-            @endif
-        });
-
         function showFullQR() {
-            console.log('showFullQR called');
-            const modal = document.getElementById('qr-modal');
-            const qrDiv = document.getElementById('qr-image');
-            const fullQrImg = document.getElementById('full-qr-image');
-
-            if (qrDiv) {
-                const qrCanvas = qrDiv.querySelector('canvas');
-                if (qrCanvas && fullQrImg) {
-                    fullQrImg.src = qrCanvas.toDataURL();
-                    modal.style.display = 'block';
-                    console.log('Modal opened');
-                } else {
-                    console.error('Canvas not found');
-                    alert('Vui lòng quét mã QR để thanh toán');
-                }
-            } else {
-                console.error('qr-image div not found');
-                alert('Vui lòng quét mã QR để thanh toán');
-            }
+            document.getElementById('qr-modal').style.display = 'block';
         }
 
         function closeFullQR() {
             document.getElementById('qr-modal').style.display = 'none';
         }
+
+        // Tự động mở modal nếu vừa đặt hàng xong
+        @if (session('show_qr'))
+            setTimeout(function() {
+                showFullQR();
+            }, 500);
+        @endif
     </script>
 @endpush
