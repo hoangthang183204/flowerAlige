@@ -172,10 +172,15 @@ class StoreController extends Controller
         $product = Product::where('is_active', true)->findOrFail($productId);
 
         $validated = $request->validate([
-            'quantity' => ['nullable', 'integer', 'min:1'],
+            'quantity' => ['nullable', 'integer', 'min:0'],
         ]);
 
-        $quantity = $validated['quantity'] ?? 1;
+        $quantity = $validated['quantity'] ?? 0;
+
+        if ($quantity <= 0) {
+            return redirect()->route('products.show', $product->slug)
+                ->with('error', 'Vui lòng chọn số lượng lớn hơn 0.');
+        }
 
         $cart = $this->getCart($request);
 
@@ -527,7 +532,7 @@ class StoreController extends Controller
         if ($validated['payment_method'] === 'cod') {
             $request->session()->forget('cart');
             $order->update(['status' => 'confirmed']);
-            
+
             return redirect()
                 ->route('order.thankyou', $order)
                 ->with('success', 'Đặt hàng thành công. Chúng tôi sẽ liên hệ xác nhận trong thời gian sớm nhất.');
@@ -536,7 +541,7 @@ class StoreController extends Controller
         // XỬ LÝ BANK TRANSFER - Chuyển đến trang chi tiết đơn hàng để hiển thị QR
         if ($validated['payment_method'] === 'bank_transfer') {
             $request->session()->forget('cart');
-            
+
             return redirect()
                 ->route('orders.my.show', $order)
                 ->with('success', 'Đặt hàng thành công! Vui lòng quét mã QR để thanh toán.')
